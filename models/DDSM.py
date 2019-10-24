@@ -134,7 +134,7 @@ class DDSM:
         for pg in range(ps, self.nmax * self.bmax + 1):
             w2[(ps, pg)] = w[(ps, pg)]
             delta_w2 = self.nmax * self.bmax - 1
-            pr_m2[pg] = math.exp(self.e2 * w[(ps, pg)] / (2 * delta_w2))
+            pr_m2[pg] = math.exp(self.e2 * w2[(ps, pg)] / (2 * delta_w2))
         sum = np.sum(list(pr_m2.values()))
         for pg in pr_m2.keys():
             pr_m2[pg] /= sum
@@ -212,12 +212,14 @@ def ex1():
 
 def ex2():
     max_repeat = repeat = 1000
+    base = dict()
     basic = dict()
+    basic2 = dict()
     impro = dict()
     ddsm = None
     while repeat > 0:
         print("\rRound", max_repeat - repeat + 1)
-        ddsm = DDSM(m=40, n=5, g=30, max_buy_price=50, max_sell_price=20)
+        ddsm = DDSM(m=60, n=5, g=35, max_buy_price=50, max_sell_price=30)
         ddsm.init_group()
         init_N = 100
         step = 50
@@ -235,26 +237,49 @@ def ex2():
                     impro[ddsm.N] += w2
                 else:
                     impro[ddsm.N] = w2
+                ddsm.e1 = 0.1
+                ddsm.e2 = 0.1
+                w3 = ddsm.basicDDSM()
+                if basic2.keys().__contains__(ddsm.N):
+                    basic2[ddsm.N] += w3
+                else:
+                    basic2[ddsm.N] = w3
+                ddsm.e1 = ddsm.e2 = 1
+                w4 = ddsm.basicDDSM()
+                if base.keys().__contains__(ddsm.N):
+                    base[ddsm.N] += w4
+                else:
+                    base[ddsm.N] = w4
                 ddsm.N += step
             except:
                 ddsm.init_group()
                 continue
         repeat -= 1
     for key in basic.keys():
+        base[key] /= max_repeat
         basic[key] /= max_repeat
+        basic2[key] /= max_repeat
         impro[key] /= max_repeat
     x = list(basic.keys())
+    base_list = list(base.values())
     basic_list = list(basic.values())
+    basic2_list = list(basic2.values())
     impro_list = list(impro.values())
     f = open('DDSM EX2_' + ddsm.__name__() + "_iter" + str(max_repeat) + ".txt", 'w')
     f.write(str(x))
     f.write("\n")
+    f.write(str(base_list))
+    f.write("\n")
     f.write(str(basic_list))
+    f.write("\n")
+    f.write(str(basic2_list))
     f.write("\n")
     f.write(str(impro_list))
     f.close()
 
-    plt.plot(x, basic_list, color='red', label='Basic', linestyle='-.')
+    plt.plot(x, base_list, color='yellow', label='base', linestyle='solid')
+    plt.plot(x, basic_list, color='red', label='e1=0.5 e2=0.5', linestyle='-.')
+    plt.plot(x, basic2_list, color='green', label='e1=0.1 e2=0.9', linestyle='--')
     plt.plot(x, impro_list, color='blue', label='Improved', linestyle=':')
 
     plt.title(u'Compare')
@@ -269,4 +294,4 @@ def ex2():
 
 
 if __name__ == "__main__":
-    ex1()
+    ex2()
