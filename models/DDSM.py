@@ -1,3 +1,4 @@
+import traceback
 import random
 import math
 import numpy as np
@@ -21,9 +22,9 @@ class DDSM:
         self.l = None
         self.bmax = 0
         self.nmax = 0
+        self.w = None
 
     def init_group(self):
-        # self.l = [[] for i in range(self.G)]
         # generate quotation profile for buyers and sellers
         self.q = np.random.randint(1, self.max_sell_price, size=self.M)
         self.b = np.random.randint(1, self.max_buy_price, size=self.N)
@@ -42,21 +43,36 @@ class DDSM:
 
         self.bmax = np.max(self.b)
         self.nmax = np.max([len(self.l[i]) for i in range(self.l.shape[0])])
+        self.w = None
+
+    def baseline(self):
+        if self.w is None:
+            # compute group bids
+            g = self.compute_group_bids()
+            [self.q, g] = self.sort_quotations_bids(self.q, g)
+            self.w = self.compute_social_welfare(g)
+        return np.max(list(self.w.values()))
 
     def basicDDSM(self):
-        # compute group bids
-        g = self.compute_group_bids()
-        [self.q, g] = self.sort_quotations_bids(self.q, g)
-        w = self.compute_social_welfare(g)
-        [ps, pg, welfare] = self.compute_dist(w)
+        if self.w is None:
+            # compute group bids
+            g = self.compute_group_bids()
+            [self.q, g] = self.sort_quotations_bids(self.q, g)
+            self.w = self.compute_social_welfare(g)
+            [ps, pg, welfare] = self.compute_dist(self.w)
+        else:
+            [ps, pg, welfare] = self.compute_dist(self.w)
         return welfare
 
     def improvedDDSM(self):
-        # compute group bids
-        g = self.compute_group_bids()
-        [self.q, g] = self.sort_quotations_bids(self.q, g)
-        w = self.compute_social_welfare(g)
-        [key, welfare] = self.compute_improved_dist(w)
+        if self.w is None:
+            # compute group bids
+            g = self.compute_group_bids()
+            [self.q, g] = self.sort_quotations_bids(self.q, g)
+            self.w = self.compute_social_welfare(g)
+            [key, welfare] = self.compute_improved_dist(self.w)
+        else:
+            [key, welfare] = self.compute_improved_dist(self.w)
         return welfare
 
     def compute_group_bids(self):
@@ -219,7 +235,7 @@ def ex2():
     ddsm = None
     while repeat > 0:
         print("\rRound", max_repeat - repeat + 1)
-        ddsm = DDSM(m=60, n=5, g=35, max_buy_price=50, max_sell_price=30)
+        ddsm = DDSM(m=200, n=5, g=15, max_buy_price=100, max_sell_price=50)
         ddsm.init_group()
         init_N = 100
         step = 50
@@ -227,16 +243,19 @@ def ex2():
         while ddsm.N <= 1000:
             print("\r-----%d-----" % ddsm.N, end="")
             try:
+                # basic
                 w1 = ddsm.basicDDSM()
                 if basic.keys().__contains__(ddsm.N):
                     basic[ddsm.N] += w1
                 else:
                     basic[ddsm.N] = w1
+                # improved
                 w2 = ddsm.improvedDDSM()
                 if impro.keys().__contains__(ddsm.N):
                     impro[ddsm.N] += w2
                 else:
                     impro[ddsm.N] = w2
+                # different e
                 ddsm.e1 = 0.1
                 ddsm.e2 = 0.1
                 w3 = ddsm.basicDDSM()
@@ -244,14 +263,14 @@ def ex2():
                     basic2[ddsm.N] += w3
                 else:
                     basic2[ddsm.N] = w3
-                ddsm.e1 = ddsm.e2 = 1
-                w4 = ddsm.basicDDSM()
+                # baseline
+                w4 = ddsm.baseline()
                 if base.keys().__contains__(ddsm.N):
                     base[ddsm.N] += w4
                 else:
                     base[ddsm.N] = w4
                 ddsm.N += step
-            except:
+            except Exception as e:
                 ddsm.init_group()
                 continue
         repeat -= 1
@@ -277,7 +296,7 @@ def ex2():
     f.write(str(impro_list))
     f.close()
 
-    plt.plot(x, base_list, color='yellow', label='base', linestyle='solid')
+    # plt.plot(x, base_list, color='yellow', label='base', linestyle='solid')
     plt.plot(x, basic_list, color='red', label='e1=0.5 e2=0.5', linestyle='-.')
     plt.plot(x, basic2_list, color='green', label='e1=0.1 e2=0.9', linestyle='--')
     plt.plot(x, impro_list, color='blue', label='Improved', linestyle=':')
