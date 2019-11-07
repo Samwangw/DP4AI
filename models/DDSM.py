@@ -1,8 +1,8 @@
-import traceback
 import random
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import traceback
 
 
 class DDSM:
@@ -20,11 +20,12 @@ class DDSM:
         self.b = None
         self.e = 0
         self.l = None
+        self.w = None
         self.bmax = 0
         self.nmax = 0
-        self.w = None
 
     def init_group(self):
+        # self.l = [[] for i in range(self.G)]
         # generate quotation profile for buyers and sellers
         self.q = np.random.randint(1, self.max_sell_price, size=self.M)
         self.b = np.random.randint(1, self.max_buy_price, size=self.N)
@@ -40,18 +41,10 @@ class DDSM:
         self.l = list(g_dict.values())
         # self.l[np.random.randint(self.G)].append(self.b[i])
         self.l = np.array(self.l)
+        self.w = None
 
         self.bmax = np.max(self.b)
         self.nmax = np.max([len(self.l[i]) for i in range(self.l.shape[0])])
-        self.w = None
-
-    def baseline(self):
-        if self.w is None:
-            # compute group bids
-            g = self.compute_group_bids()
-            [self.q, g] = self.sort_quotations_bids(self.q, g)
-            self.w = self.compute_social_welfare(g)
-        return np.max(list(self.w.values()))
 
     def basicDDSM(self):
         if self.w is None:
@@ -59,9 +52,7 @@ class DDSM:
             g = self.compute_group_bids()
             [self.q, g] = self.sort_quotations_bids(self.q, g)
             self.w = self.compute_social_welfare(g)
-            [ps, pg, welfare] = self.compute_dist(self.w)
-        else:
-            [ps, pg, welfare] = self.compute_dist(self.w)
+        [ps, pg, welfare] = self.compute_dist(self.w)
         return welfare
 
     def improvedDDSM(self):
@@ -69,10 +60,8 @@ class DDSM:
             # compute group bids
             g = self.compute_group_bids()
             [self.q, g] = self.sort_quotations_bids(self.q, g)
-            self.w = self.compute_social_welfare(g)
-            [key, welfare] = self.compute_improved_dist(self.w)
-        else:
-            [key, welfare] = self.compute_improved_dist(self.w)
+            w = self.compute_social_welfare(g)
+        [key, welfare] = self.compute_improved_dist(self.w)
         return welfare
 
     def compute_group_bids(self):
@@ -177,7 +166,7 @@ class DDSM:
         return [key_list[key_index], w[key_list[key_index]]]
 
     def __name__(self):
-        return "M" + str(self.M) + "_N" + str(self.N) + "_G" + str(self.G)
+        return "M" + str(self.M) + "_N" + str(self.N) + "_G" + str(self.G) + str(self.e1) + "-" + str(self.e2)
 
 
 def ex1():
@@ -226,16 +215,23 @@ def ex1():
     plt.close()
 
 
-def ex2():
-    max_repeat = repeat = 1000
-    base = dict()
+def optimise():
+    for p1 in [(30 + i * 10) for i in range(10)]:
+        for p2 in [(30 + i * 10) for i in range(10)]:
+            ex2(p1, p2)
+
+
+def ex2(p1, p2):
+    max_repeat = repeat = 2000
+    e_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     basic = dict()
-    basic2 = dict()
+    for e in e_list:
+        basic[e] = dict()
     impro = dict()
     ddsm = None
     while repeat > 0:
         print("\rRound", max_repeat - repeat + 1)
-        ddsm = DDSM(m=200, n=5, g=15, max_buy_price=100, max_sell_price=50)
+        ddsm = DDSM(m=200, n=5, g=35, max_buy_price=p1, max_sell_price=p2)
         ddsm.init_group()
         init_N = 100
         step = 50
@@ -243,62 +239,56 @@ def ex2():
         while ddsm.N <= 1000:
             print("\r-----%d-----" % ddsm.N, end="")
             try:
-                # basic
-                w1 = ddsm.basicDDSM()
-                if basic.keys().__contains__(ddsm.N):
-                    basic[ddsm.N] += w1
-                else:
-                    basic[ddsm.N] = w1
-                # improved
+                for e in e_list:
+                    ddsm.e1 = ddsm.e2 = e
+                    w = ddsm.basicDDSM()
+                    if basic[e].keys().__contains__(ddsm.N):
+                        basic[e][ddsm.N] += w
+                    else:
+                        basic[e][ddsm.N] = w
+                ddsm.e1 = ddsm.e2 = 0.5
                 w2 = ddsm.improvedDDSM()
                 if impro.keys().__contains__(ddsm.N):
                     impro[ddsm.N] += w2
                 else:
                     impro[ddsm.N] = w2
-                # different e
-                ddsm.e1 = 0.1
-                ddsm.e2 = 0.1
-                w3 = ddsm.basicDDSM()
-                if basic2.keys().__contains__(ddsm.N):
-                    basic2[ddsm.N] += w3
-                else:
-                    basic2[ddsm.N] = w3
-                # baseline
-                w4 = ddsm.baseline()
-                if base.keys().__contains__(ddsm.N):
-                    base[ddsm.N] += w4
-                else:
-                    base[ddsm.N] = w4
-                ddsm.N += step
             except Exception as e:
+                # traceback.print_exc()
                 ddsm.init_group()
                 continue
+            ddsm.N += step
         repeat -= 1
-    for key in basic.keys():
-        base[key] /= max_repeat
-        basic[key] /= max_repeat
-        basic2[key] /= max_repeat
+    for key in basic[e].keys():
+        for e in e_list:
+            basic[e][key] /= max_repeat
         impro[key] /= max_repeat
-    x = list(basic.keys())
-    base_list = list(base.values())
-    basic_list = list(basic.values())
-    basic2_list = list(basic2.values())
+    x = list(impro.keys())
     impro_list = list(impro.values())
-    f = open('DDSM EX2_' + ddsm.__name__() + "_iter" + str(max_repeat) + ".txt", 'w')
-    f.write(str(x))
-    f.write("\n")
-    f.write(str(base_list))
-    f.write("\n")
-    f.write(str(basic_list))
-    f.write("\n")
-    f.write(str(basic2_list))
-    f.write("\n")
-    f.write(str(impro_list))
-    f.close()
+    seed = random.random()
+    f = open('DDSM EX2_' + ddsm.__name__() + "_iter" + str(max_repeat) + "_" + str(seed) + ".txt", 'w')
+    f.write("M:" + str(ddsm.M) + "\n")
+    f.write("N:" + str(ddsm.N) + "\n")
+    f.write("G:" + str(ddsm.G) + "\n")
+    f.write("e1:" + str(ddsm.e1) + "\n")
+    f.write("e2:" + str(ddsm.e2) + "\n")
+    f.write("max_sell_price:" + str(ddsm.max_sell_price) + "\n")
+    f.write("max_buy_price:" + str(ddsm.max_buy_price) + "\n")
 
-    # plt.plot(x, base_list, color='yellow', label='base', linestyle='solid')
-    plt.plot(x, basic_list, color='red', label='e1=0.5 e2=0.5', linestyle='-.')
-    plt.plot(x, basic2_list, color='green', label='e1=0.1 e2=0.9', linestyle='--')
+    f.write("x:" + str(x) + "\n")
+    for e in e_list:
+        f.write(str(e) + ":" + str(list(basic[e].values())) + "\n")
+    f.write("improve:" + str(impro_list) + "\n")
+    f.close()
+    e = 0.1
+    plt.plot(x, list(basic[0.1].values()), color='black', label=str(0.1), linestyle='dashed')
+    e = 0.3
+    plt.plot(x, list(basic[e].values()), color='yellow', label=str(e), linestyle='dashed')
+    e = 0.5
+    plt.plot(x, list(basic[e].values()), color='red', label=str(e), linestyle='-.')
+    e = 0.7
+    plt.plot(x, list(basic[e].values()), color='green', label=str(e), linestyle='--')
+    e = 0.9
+    plt.plot(x, list(basic[e].values()), color='orange', label=str(e), linestyle='--')
     plt.plot(x, impro_list, color='blue', label='Improved', linestyle=':')
 
     plt.title(u'Compare')
@@ -307,10 +297,38 @@ def ex2():
 
     plt.legend()
 
-    filename = 'DDSM EX2_' + ddsm.__name__() + "_iter" + str(max_repeat) + '.png'
+    filename = 'DDSM EX2_' + ddsm.__name__() + "_iter" + str(max_repeat) + "_" + str(seed) + '.png'
     plt.savefig(filename)
     plt.close()
 
 
 if __name__ == "__main__":
-    ex2()
+    # optimise()
+    x= [100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950, 1000]
+    basic5 =  [93.874, 102.821, 103.61533333333334, 102.45133333333334, 105.89166666666667, 105.13633333333334,
+          112.09966666666666, 111.76366666666667, 112.302, 116.482, 115.71733333333333, 114.849, 106.50266666666667,
+          115.86966666666666, 109.15633333333334, 113.97666666666667, 115.04433333333333, 107.991, 116.90633333333334]
+    basic1=[84.96033333333334, 92.02433333333333, 91.82833333333333, 94.70933333333333, 92.414, 95.96, 95.201, 97.61633333333333, 92.551, 97.83066666666667, 97.95866666666667, 95.13766666666666, 92.10033333333334, 99.33166666666666, 97.245, 97.29533333333333, 98.698, 93.339, 95.216]
+    basic3=[89.42933333333333, 97.36433333333333, 93.19033333333333, 97.31966666666666, 96.94666666666667,
+        97.92366666666666, 99.321, 101.75133333333333, 104.11566666666667, 105.14666666666666, 101.564, 104.454,
+        103.36733333333333, 102.04633333333334, 107.07766666666667, 104.50433333333334, 105.63633333333334,
+        100.36133333333333, 107.30433333333333]
+    basic7= [97.08166666666666, 104.905, 111.05666666666667, 107.452, 115.511, 121.03266666666667, 117.27266666666667,
+        118.56266666666667, 122.725, 127.237, 129.98733333333334, 133.60933333333332, 122.58566666666667,
+        121.69266666666667, 131.681, 132.24133333333333, 121.734, 120.28833333333333, 125.37966666666667]
+    basic9= [101.42133333333334, 112.63833333333334, 121.406, 124.15233333333333, 126.57633333333334, 124.498, 141.661,
+        127.23066666666666, 136.67866666666666, 141.51233333333334, 135.863, 138.49133333333333, 142.14266666666666,
+        141.415, 138.15566666666666, 139.33866666666665, 147.99633333333333, 140.29766666666666, 151.85933333333332]
+    plt.plot(x, list(basic1), color='b', label="e=0.1", linestyle='-')
+    plt.plot(x, list(basic3), color='g', label="e=0.3", linestyle='--')
+    plt.plot(x, list(basic5), color='r', label="e=0.5", linestyle='-.')
+    plt.plot(x, list(basic7), color='c', label="e=0.7", linestyle=':')
+    plt.plot(x, list(basic9), color='y', label="e=0.9", linestyle='-')
+
+    plt.xlabel(u'N')
+    plt.ylabel(u'Welfare')
+    plt.legend()
+
+    filename = 'DDSM EX2_basics.png'
+    plt.savefig(filename)
+    plt.close()
